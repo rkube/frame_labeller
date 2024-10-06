@@ -1,0 +1,24 @@
+        <!-- <form >
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required><br><br>   
+    
+    
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required><br><br>
+    
+            <input type="submit" value="Login">   
+    
+        </form>    -->
+        
+        <!-- <ul id="todo-list">
+            {{ range .Todos }} {{block "todo-list-element" .}}
+            <li> {{.Message}} </li>
+            {{end}}  {{end}}
+        </ul>
+
+
+        <form hx-swap="beforeend" hx-target="#todo-list" hx-post="/add-todo">
+            <label for="message">Message: </label>
+            <input type="text" id="message" name="message" />
+            <button type="submit"> Create </button>
+        </form> -->

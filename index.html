@@ -9,7 +9,52 @@
     </head>
     <body>
         hello, world: <br>
-        Username: {{ .Username }} <br>
-        ID: {{ .Id }}
+        <form hx-get="/signin" hx-target="#session-info">
+            <button type="submit">Get session cookie</button>
+        </form>
+
+        <div id="session-info">
+            session info here {{ .Session_token_id }}
+        </div>
+
+        <div id="nagivation">
+            Navigation
+        </div>
+        <div id="data-display">
+            <button onclick="fetchData()">Fetch Data</button>
+            <script>
+                let arrayData = [];
+
+                function fetchData() {
+                fetch('http://localhost:8080/api/fetch_data') // Replace with your API endpoint
+                    .then(response => response.json())
+                    .then(data => {
+                        arrayData.pop();
+                        arrayData.push(data);
+                        updateArrayDisplay();
+                    })
+                    .catch(error => {
+                        console.error('Error fetching data:', error);
+                    });
+                }
+
+                function updateArrayDisplay() {
+                    const dataElement = document.getElementById('data-demo');
+                    dataElement.innerHTML = '';
+                    console.log("arrayData = ", arrayData)
+                    console.log("typeof: ", typeof(arrayData))
+                    arrayData.forEach(item => {
+                        console.log("item = ", item)
+                        const p = document.createElement('p');
+                        p.textContent = "Name: " + item["name"] + " Age: " + item["age"]
+                        dataElement.appendChild(p);
+                    });
+                }
+            </script>
+            <div id="data-demo">
+                this is a placeholder
+            </div>
+        </div>
+
     </body>
 </html>

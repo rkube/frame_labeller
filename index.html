@@ -3,8 +3,12 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- HTMX -->
         <script src="https://unpkg.com/htmx.org@2.0.3" integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq" crossorigin="anonymous"></script>
-
+        <!-- Plotly -->
+        <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+        <!-- msgpacks -->
+        <script src="https://rawgit.com/kawanet/msgpack-lite/master/dist/msgpack.min.js"></script>
         <title> Go HTMX </title>
     </head>
     <body>
@@ -53,6 +57,52 @@
             </script>
             <div id="data-demo">
                 this is a placeholder
+            </div>
+
+            <button onClick="fetchArrayData()">Fetch Array Data</button>
+            <script>
+                function fetchArrayData() {
+                    fetch('http://localhost:8080/api/fetch_data_uint16')
+                    .then(response => {
+                        console.log('response = ', response)
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch data: ${response.status}`);
+                        }
+                        return response.arrayBuffer();
+                    })
+                    .then(buffer => {
+                        console.log('buffer = ', buffer)
+                        const view = new Uint8Array(buffer)
+                        console.log('view = ', view)
+                        var data_array = msgpack.decode(view)
+                        console.log('data_array = ', data_array)
+                    //     console.log(msgpack.decode(buffer))
+                    //     const array_data = msgpack.decode(buffer);
+
+                    //     // Process the decoded uint16 array as needed
+                    //     console.log(array_data);
+        
+                    //     resolve(uint16Array);
+                    })
+                    }
+
+            </script>
+
+            <div id="my-heatmap">
+                <script>
+                    console.log("ini my-heatmap: arrayData = ", arrayData)
+                    var data = [
+                        {
+                            z: [[1, null, 30, 50, 1], [20, 1, 60, 80, 30], [30, 60, 1, -10, 20]],
+                            x: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+                            y: ['Morning', 'Afternoon', 'Evening'],
+                            type: 'heatmap',
+                            hoverongaps: false
+                        }
+                    ];
+
+                    Plotly.newPlot('my-heatmap', data);
+                </script>
             </div>
         </div>
 

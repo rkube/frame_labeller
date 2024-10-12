@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shamaton/msgpack/v2"
 )
 
 // this map stores the users sessions. For larger scale applications, you can use a database or cache for this purpose
@@ -101,12 +102,33 @@ func fetch_data(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonData)
 }
 
+// This function sends a 100x100 16-bit integer array
+func fetch_data_array(w http.ResponseWriter, r *http.Request) {
+	// Create a 10x10 array of 16-bit integers
+	array := make([]uint16, 100)
+	for i := range array {
+		array[i] = uint16(i)
+		// array[i] = make([]uint16, 10)
+		// for j := range array[i] {
+		// 	array[i][j] = uint16(i*10 + j)
+		// }
+	}
+	fmt.Println("Sending array data")
+
+	// Serialize the array using MessagePack
+	w.Header().Set("Content-Type", "application/x-msgpack")
+	if err := msgpack.MarshalWriteAsArray(w, array); err != nil {
+		panic(err)
+	}
+
+}
 func main() {
 	fmt.Println("Hello, world")
 
 	http.Handle("/", http.HandlerFunc(my_route))
 	http.Handle("/signin", http.HandlerFunc(signin_handler))
 	http.Handle("/api/fetch_data", http.HandlerFunc(fetch_data))
+	http.Handle("/api/fetch_data_uint16", http.HandlerFunc(fetch_data_array))
 
 	// Start the server
 	http.ListenAndServe(":8080", nil)

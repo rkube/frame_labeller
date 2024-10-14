@@ -1,0 +1,95 @@
+/*
+ * Color scheme: https://colormagic.app/palette/RFzOf03YxPhdl5r0HBIf
+ *
+ * Nutmeg: #7c462d
+ * Brown rust: #b4643c
+ * Whiskey: #d29c6a
+ * Mongoose: #b5a47d
+ * Killarney: #3f6e47
+ */
+
+body {
+    display: grid;
+    grid-template-columns: (3 1fr);
+
+    grid-template-areas: 
+        "hd hd hd"
+        "mn mn mn"
+        "mn mn mn";
+}
+
+.navheader {
+    grid-area: hd;
+    background-color: #7c462d;
+}
+
+.container {
+    grid-area: mn;
+    display: grid;
+    grid-template-columns: 300px 500px 1fr;
+    grid-template-rows: 100px 700px;
+    column-gap: 20px;
+    row-gap: 20px
+}
+
+.box {
+    background-color: #b5a47d;
+    color: #fff;
+    font-size: 1rem;
+    padding: 0.5rem;
+}
+
+.box:nth-child(4) {
+    /* background-color:#3f6e47; */
+    grid-column-start: 1;
+    grid-column-end: 3;
+}
+
+
+.plotwindow {
+    background-color:darkgrey;
+    border: 2px dashed red;
+}
+
+/* Define a flex-box container for the frame navigation buttons */
+.nav-container {
+    display: flex;
+    flex-direction: column;
+}
+
+
+/* A style for our buttons
+<button class="button-32" role="button">Button 32</button>
+ */
+
+/* CSS */
+.button-32 {
+  background-color: #3f6e47;
+  border-radius: 12px;
+  color: #000;
+  cursor: pointer;
+  font-weight: bold;
+  padding: 10px 15px;
+  text-align: center;
+  transition: 200ms;
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  font-size: 16px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.button-32:not(:disabled):hover,
+.button-32:not(:disabled):focus {
+  outline: 0;
+  background: #3f6e47;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.2), 0 3px 8px 0 rgba(0,0,0,.15);
+}
+
+.button-32:disabled {
+  filter: saturate(0.2) opacity(0.5);
+  -webkit-filter: saturate(0.2) opacity(0.5);
+  cursor: not-allowed;
+}

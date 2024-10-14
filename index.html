@@ -10,101 +10,138 @@
         <!-- msgpacks -->
         <script src="https://rawgit.com/kawanet/msgpack-lite/master/dist/msgpack.min.js"></script>
         <title> Go HTMX </title>
+        <link rel="stylesheet" type="text/css" href="/css/style-2.css">
     </head>
     <body>
-        hello, world: <br>
-        <form hx-get="/signin" hx-target="#session-info">
-            <button type="submit">Get session cookie</button>
-        </form>
+        <header class="navheader"><h1 align="center">SPARTA labelling tool</h1>
 
-        <div id="session-info">
-            session info here {{ .Session_token_id }}
-        </div>
+        </header>
+        <main class="container">
+            <div class="box">
+                <form>
+                    <label for="shotnr">Shot</label>
+                    <input type="number" min=240108001 id="fname" name="fname" value="241013002">
+                    <button class="button-32" 
+                        id="fetch-btn"
+                        hx-get="/get_sparta_info" 
+                        hx-select-oob="#sparta-shot-info, #sparta-shot-nav">
+                        Fetch
+                    </button>
+                </form>
+            </div>
+            <div class="box"> 
+                <div id="sparta-shot-info">
+                    Sparta Info for selected shot
+                </div>
 
-        <div id="nagivation">
-            Navigation
-        </div>
-        <div id="data-display">
-            <button onclick="fetchData()">Fetch Data</button>
-            <script>
-                let arrayData = [];
+            </div>
+            <div class="box">
+                <button hx-get="/signin"
+                    hx-trigger="click"
+                    hx-target="#session-info"
+                    hx-swap="innerHTML"
+                    class="button-32">
+                Session info
+            </button>
 
-                function fetchData() {
-                fetch('http://localhost:8080/api/fetch_data') // Replace with your API endpoint
-                    .then(response => response.json())
-                    .then(data => {
-                        arrayData.pop();
-                        arrayData.push(data);
-                        updateArrayDisplay();
-                    })
-                    .catch(error => {
-                        console.error('Error fetching data:', error);
-                    });
-                }
-
-                function updateArrayDisplay() {
-                    const dataElement = document.getElementById('data-demo');
-                    dataElement.innerHTML = '';
-                    console.log("arrayData = ", arrayData)
-                    console.log("typeof: ", typeof(arrayData))
-                    arrayData.forEach(item => {
-                        console.log("item = ", item)
-                        const p = document.createElement('p');
-                        p.textContent = "Name: " + item["name"] + " Age: " + item["age"]
-                        dataElement.appendChild(p);
-                    });
-                }
-            </script>
-            <div id="data-demo">
-                this is a placeholder
+            <div id="session-info">
+                session info here {{ .Session_token_id }}
             </div>
 
-            <button onClick="fetchArrayData()">Fetch Array Data</button>
-            <script>
-                function fetchArrayData() {
-                    fetch('http://localhost:8080/api/fetch_data_uint16')
-                    .then(response => {
-                        console.log('response = ', response)
-                        if (!response.ok) {
-                            throw new Error(`Failed to fetch data: ${response.status}`);
-                        }
-                        return response.arrayBuffer();
-                    })
-                    .then(buffer => {
-                        console.log('buffer = ', buffer)
-                        const view = new Uint8Array(buffer)
-                        console.log('view = ', view)
-                        var data_array = msgpack.decode(view)
-                        console.log('data_array = ', data_array)
-                    //     console.log(msgpack.decode(buffer))
-                    //     const array_data = msgpack.decode(buffer);
+            </div>
+            <div class="box"> 
+                <div id="data-display" class="plotwindow">
+                    <div id="sparta-shot-nav" class="nav-containers">
+                        Fetch a shot to load navigation
+                    </div>
 
-                    //     // Process the decoded uint16 array as needed
-                    //     console.log(array_data);
+                    <script>
+                        function reshape_array(data_array) {
+                            // data_array: a view on a 100 (= 10x10) Uint16Array
+                            let new_array = []
+                            for (let i = 0; i < 10; i++) {
+                                tmp_array = [data_array[i * 10], data_array[i * 10 + 1], data_array[i * 10 + 2], data_array[i * 10 + 3], data_array[i * 10 + 4], data_array[i * 10 + 5], data_array[i * 10 + 6], data_array[i * 10 + 7], data_array[i * 10 + 8], data_array[i * 10 + 9]]
+                                new_array.push(tmp_array)
+                            }
+                            return new_array
+                        }
+    
+                        function fetchArrayData() {
+                            const cookies = document.cookie;
+                            console.log('cookies = ', cookies)
+
+                            fetch('http://localhost:8080/api/fetch_data_uint16', {
+                                    credentials: "include"})
+                            .then(response => { // Check if the response is OK
+                                console.log('response = ', response)
+                                if (!response.ok) {
+                                    throw new Error(`Failed to fetch data: ${response.status}`);
+                                }
+                                return response.arrayBuffer();
+                            })
+                            .then(buffer => {  // Extract new data from the array buffer
+                                const view = new Uint8Array(buffer)
+                                var data_array = msgpack.decode(view)
+                                return data_array;
+                            })
+                            .then(new_array => { // update the heatmap with new data
+                                const new_data = [
+                                    {
+                                        x: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                                        y: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                                        z: reshape_array(new_array),
+                                        type: 'heatmap'
+                                    }
+                                ]
+                                console.log('new_data = ', new_data)
+                                Plotly.react('my-heatmap', new_data)
+                            })
+                            }
         
-                    //     resolve(uint16Array);
-                    })
-                    }
-
-            </script>
-
-            <div id="my-heatmap">
-                <script>
-                    console.log("ini my-heatmap: arrayData = ", arrayData)
-                    var data = [
-                        {
-                            z: [[1, null, 30, 50, 1], [20, 1, 60, 80, 30], [30, 60, 1, -10, 20]],
-                            x: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-                            y: ['Morning', 'Afternoon', 'Evening'],
-                            type: 'heatmap',
-                            hoverongaps: false
-                        }
-                    ];
-
-                    Plotly.newPlot('my-heatmap', data);
-                </script>
+                    </script>
+        
+                    <div id="my-heatmap">
+                        <script>
+                            var data = [
+                                {
+                                    z: [[1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9]],
+                                    x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                                    y: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                                    type: 'heatmap',
+                                    hoverongaps: false
+                                }
+                            ];
+                            var layout = {
+                                title: 'Hide the Modebar',
+                                showlegend: true
+                            };
+        
+                            Plotly.newPlot('my-heatmap', data, layout, {staticPlot: true});
+                        </script>
+                    </div>
+                </div>
             </div>
-        </div>
+            <div class="box">
+                <form>
+                    <label for="shotnr">label</label>
+                    <input type="text" id="label" name="label" value="label"> <br>
+                    <label for="comment">Comment</label>
+                    <textarea name="comment" rows="20" cols="50"></textarea> <br>
+                    <button class="button-32"
+                        hx-get="/api/submit"
+                        hx-trigger="click"
+                        hx-target="#submit-status"
+                        hx-swap="innerHTML"> 
+                        Submit 
+                    </button>
+                </form>
+                <div id="submit-status">
+
+                </div>
+
+            </div>
+        </main>
+ 
 
     </body>
 </html>

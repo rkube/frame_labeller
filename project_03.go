@@ -13,19 +13,53 @@ import (
 	"github.com/shamaton/msgpack/v2"
 )
 
-// this map stores the users sessions. For larger scale applications, you can use a database or cache for this purpose
-var sessions = map[string]session{}
-
-// each session contains the username of the user and the time at which it expires
-type session struct {
-	expiry time.Time
+// Keeps track where each user is at a given time
+type user_state struct {
+	username string
+	shotnr   uint
+	frame    uint
 }
+
+// app_context is the local context. It is created in main and passed to all http handlers.
+type app_context struct {
+	session_to_user map[string]string     // Map from session ids to user ids
+	all_user_state  map[string]user_state // Map from user id to user_state
+
+}
+
+// // this map stores the users sessions. For larger scale applications, you can use a database or cache for this purpose
+// var sessions = map[string]session{}
+
+// // each session contains the username of the user and the time at which it expires
+// type session struct {
+// 	expiry time.Time
+// }
+
+// Maps session-ids to users
+// var session_to_user = map[string]user_id{}
+
+// type user_id struct {
+// 	name string
+// }
+
+// // Maps usernames to the current state
+// var state_map = map[user_id]state{}
 
 /*
  * Generate a new session token
  */
 func signin_handler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("signin_handler here")
+
+	// Extract username from form.
+	err := r.ParseForm()
+	if err != nil { // Return a Bad Request if we can't parse the form
+		fmt.Fprintf(os.Stdout, "signin_handler: Unable to parse %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	fmt.Println("r.Form = ", r.Form)
+	username := r.Form.Get("username")
+	fmt.Printf("signin_handler: username = %s\n", username)
 
 	// Create a new random session token
 	// we use the "github.com/google/uuid" library to generate UUIDs
@@ -53,13 +87,13 @@ func signin_handler(w http.ResponseWriter, r *http.Request) {
 
 	// Write a response, this will be rendered by htmx
 	fmt.Fprintf(w, "setting new session token: %s", sessionToken)
-	fmt.Printf("Setting new session token: %s\n", sessionToken)
+	fmt.Printf("signin_handler: Setting new session token: %s\n", sessionToken)
 }
 
 // Tracks users with a unique session string
-type state_data struct {
-	Session_token_id string
-}
+// type state_data struct {
+// 	Session_token_id string
+// }
 
 // Renders the main page
 func my_route(w http.ResponseWriter, r *http.Request) {
@@ -129,6 +163,7 @@ func get_sparta_info(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("get_sparta_info: Session token not set")
 	} else {
 		fmt.Println("get_sparta_info: session_token = ", c.Value)
+
 	}
 	my_sparta_info := sparta_info{Shotnr: 241013010, T_start: 0.0, T_end: 0.0, Num_frames: rand.Int() % 100}
 	tmpl := template.Must(template.ParseFiles("templates/sparta_info.tmpl"))
@@ -175,12 +210,12 @@ func main() {
 		println(err.Error())
 	}
 
-	http.Handle("/", http.HandlerFunc(my_route))
-	http.Handle("/signin/", http.HandlerFunc(signin_handler))
-	http.Handle("/frame_navigation", http.HandlerFunc(fetch_frame_navigation))
-	http.Handle("/get_sparta_info/", http.HandlerFunc(get_sparta_info))
-	http.Handle("/api/fetch_data_uint16", http.HandlerFunc(fetch_data_array))
-	http.Handle("/api/submit", http.HandlerFunc(handle_submit))
+	http.Handle("/", http.HandlerFunc(my_route))                                      // Main page
+	http.Handle("/signin", http.HandlerFunc(signin_handler))                          // Handles login etc.
+	http.Handle("/frame_navigation", http.HandlerFunc(fetch_frame_navigation))        // Loads frame navigation UI
+	http.Handle("/get_sparta_info/", http.HandlerFunc(get_sparta_info))               // Loads SPARTA info
+	http.Handle("/api/fetch_data_uint16", http.HandlerFunc(fetch_data_array))         // Loads SPARTA frames
+	http.Handle("/api/submit", http.HandlerFunc(handle_submit))                       // Handles label submission etc.
 	http.Handle("/css/", http.StripPrefix("/css", http.FileServer(http.Dir("css/")))) // to serve css
 
 	// Start the server

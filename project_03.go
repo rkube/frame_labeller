@@ -16,15 +16,15 @@ import (
 
 // Keeps track where each user is at a given time
 type user_state struct {
-	shotnr uint
-	frame  uint
+	shotnr             uint
+	frame              uint
+	current_session_id string
 }
 
 // app_context is the local context. It is created in main and passed to all http handlers.
 type app_context struct {
 	session_to_user map[string]string     // Map from session ids to user ids
 	all_user_state  map[string]user_state // Map from user id to user_state
-
 }
 
 /*
@@ -51,28 +51,7 @@ func (ah app_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
  */
 func my_route(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
 	fmt.Println("Handling HTTP requests...")
-
-	// t_data := state_data{Session_token_id: "undefined"}
-	// session_id := ""
-	// c, err := r.Cookie("session_token")
-	// if err != nil {
-	// 	fmt.Println("my_route: Session token not set")
-	// 	session_id = "undefined"
-	// } else {
-	// 	fmt.Println("my_route: session_token = ", c.Value)
-	// 	// t_data.Session_token_id = c.Value
-	// 	session_id = c.Value
-	// }
-
 	http.ServeFile(w, r, "index.html")
-
-	// Read template
-	// templ, err := template.ParseFiles("index.html")
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return 0, err
-	// }
-	// templ.Execute(w, session_id)
 	return 0, nil
 }
 
@@ -111,10 +90,19 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 
 	// TODO: Find if another sessionid belongs to the user.
 	// If so, copy the old user_state to a new entry and remove the old session id.
-
-	// Track the current user by its session ids
-	a.session_to_user[sessionToken] = username
-	a.all_user_state[username] = user_state{shotnr: 0, frame: 0}
+	if old_user_state, ok := a.all_user_state[username]; ok {
+		fmt.Println("signin_handler: old_session_token = ", old_user_state.current_session_id)
+		// Delete the old session token for the user
+		delete(a.session_to_user, old_user_state.current_session_id)
+		a.session_to_user[sessionToken] = username
+		// Insert the new session token for the user, but keep the rest of the state the same
+		old_user_state.current_session_id = sessionToken
+		a.all_user_state[username] = old_user_state
+	} else {
+		fmt.Println("signin_handler: user logged in for first time")
+		a.session_to_user[sessionToken] = username
+		a.all_user_state[username] = user_state{shotnr: 0, frame: 0, current_session_id: sessionToken}
+	}
 
 	fmt.Println("signin_handler: a = ", a)
 
@@ -125,16 +113,20 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 }
 
 // Sends SPARTA dummy data (100x100 16-bit integer array, random values)
-func fetch_data_array(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
+func fetch_data_uint16(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
 	// t_data := state_data{Session_token_id: "undefined"}
 	session_id := ""
 
+	// If the user is logged in, update the shot the user is on
 	c, err := r.Cookie("session_token")
 	if err != nil {
 		fmt.Println("fetch_data_array: Session token not set")
 	} else {
 		session_id = c.Value
 		fmt.Println("fetch_data_array: session_token = ", session_id)
+		username := a.session_to_user[session_id]
+		fmt.Println("fetch_data_array: looking up username: ", username)
+		fmt.Println("fetch_data_array: user state is ", a.all_user_state[username])
 	}
 
 	fmt.Println("fetch_data_array: a = ", a)
@@ -169,6 +161,7 @@ type sparta_info struct {
 // Loads information on SPARTA for a given shot
 // Geometry - TBD
 // Timing s
+// Also loads sparta navigation UI
 func get_sparta_info(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("session_token")
 	if err != nil {
@@ -195,24 +188,19 @@ func handle_submit(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "submitted data")
 }
 
-// Creates frame navigation slider
-type frame_nav_info struct {
-	Num_frames    int
-	Current_frame int
-}
+// Updates the current frame a user is on
+func handle_new_frame(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
+	fmt.Println("dummy_route handler")
 
-func fetch_frame_navigation(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("rendering frame navigation")
-	c, err := r.Cookie("session_token")
-	if err != nil {
-		fmt.Println("fetch_frame_navigation: Session token not set")
-	} else {
-		fmt.Println("fetch_frame_navigation: session_token = ", c.Value)
+	err := r.ParseForm()
+	if err != nil { // Return a Bad Request if we can't parse the form
+		fmt.Fprintf(os.Stdout, "signin_handler: Unable to parse %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return 400, nil
 	}
+	fmt.Println("dummy_route: r.Form = ", r.Form)
 
-	fi := frame_nav_info{Num_frames: 100, Current_frame: 1}
-	tmpl := template.Must(template.ParseFiles("templates/frame_navigation.tmpl"))
-	tmpl.Execute(w, fi)
+	return 0, nil
 }
 
 func main() {
@@ -226,11 +214,12 @@ func main() {
 
 	// http.Handle("/", http.HandlerFunc(my_route))                                      // Main page
 	http.Handle("/", app_handler{context, my_route})
-	http.Handle("/signin", app_handler{context, signin_handler})                      // Handles login etc.
-	http.Handle("/frame_navigation", http.HandlerFunc(fetch_frame_navigation))        // Loads frame navigation UI
-	http.Handle("/get_sparta_info/", http.HandlerFunc(get_sparta_info))               // Loads SPARTA info
-	http.Handle("/api/fetch_data_uint16", app_handler{context, fetch_data_array})     // Loads SPARTA frames
-	http.Handle("/api/submit", http.HandlerFunc(handle_submit))                       // Handles label submission etc.
+	http.Handle("/signin", app_handler{context, signin_handler}) // Handles login etc.
+	// http.Handle("/frame_navigation", http.HandlerFunc(fetch_frame_navigation))        // Loads frame navigation UI
+	http.Handle("/get_sparta_info/", http.HandlerFunc(get_sparta_info))            // Loads SPARTA info
+	http.Handle("/api/fetch_data_uint16", app_handler{context, fetch_data_uint16}) // Loads SPARTA frames
+	http.Handle("/api/submit", http.HandlerFunc(handle_submit))                    // Handles label submission etc.
+	http.Handle("/api/sparta_frame", app_handler{context, handle_new_frame})
 	http.Handle("/css/", http.StripPrefix("/css", http.FileServer(http.Dir("css/")))) // to serve css
 
 	// Start the server

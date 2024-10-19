@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -15,9 +16,8 @@ import (
 
 // Keeps track where each user is at a given time
 type user_state struct {
-	username string
-	shotnr   uint
-	frame    uint
+	shotnr uint
+	frame  uint
 }
 
 // app_context is the local context. It is created in main and passed to all http handlers.
@@ -27,28 +27,59 @@ type app_context struct {
 
 }
 
-// // this map stores the users sessions. For larger scale applications, you can use a database or cache for this purpose
-// var sessions = map[string]session{}
+/*
+ * Make all handlers a struct that implements http.Handler
+ * See https://drstearns.github.io/tutorials/gohandlerctx/
+ * and https://blog.questionable.services/article/custom-handlers-avoiding-globals/
+ */
 
-// // each session contains the username of the user and the time at which it expires
-// type session struct {
-// 	expiry time.Time
-// }
+type app_handler struct {
+	*app_context
+	H func(*app_context, http.ResponseWriter, *http.Request) (int, error)
+}
 
-// Maps session-ids to users
-// var session_to_user = map[string]user_id{}
+func (ah app_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Updated to pass ah.appContext as a parameter to our handler type.
+	status, err := ah.H(ah.app_context, w, r)
+	if err != nil {
+		log.Printf("HTTP %d: %q", status, err)
+	}
+}
 
-// type user_id struct {
-// 	name string
-// }
+/*
+ * Render the main page
+ */
+func my_route(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
+	fmt.Println("Handling HTTP requests...")
 
-// // Maps usernames to the current state
-// var state_map = map[user_id]state{}
+	// t_data := state_data{Session_token_id: "undefined"}
+	// session_id := ""
+	// c, err := r.Cookie("session_token")
+	// if err != nil {
+	// 	fmt.Println("my_route: Session token not set")
+	// 	session_id = "undefined"
+	// } else {
+	// 	fmt.Println("my_route: session_token = ", c.Value)
+	// 	// t_data.Session_token_id = c.Value
+	// 	session_id = c.Value
+	// }
+
+	http.ServeFile(w, r, "index.html")
+
+	// Read template
+	// templ, err := template.ParseFiles("index.html")
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	return 0, err
+	// }
+	// templ.Execute(w, session_id)
+	return 0, nil
+}
 
 /*
  * Generate a new session token
  */
-func signin_handler(w http.ResponseWriter, r *http.Request) {
+func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
 	fmt.Println("signin_handler here")
 
 	// Extract username from form.
@@ -56,8 +87,8 @@ func signin_handler(w http.ResponseWriter, r *http.Request) {
 	if err != nil { // Return a Bad Request if we can't parse the form
 		fmt.Fprintf(os.Stdout, "signin_handler: Unable to parse %v", err)
 		w.WriteHeader(http.StatusBadRequest)
+		return 400, nil
 	}
-	fmt.Println("r.Form = ", r.Form)
 	username := r.Form.Get("username")
 	fmt.Printf("signin_handler: username = %s\n", username)
 
@@ -65,13 +96,6 @@ func signin_handler(w http.ResponseWriter, r *http.Request) {
 	// we use the "github.com/google/uuid" library to generate UUIDs
 	sessionToken := uuid.NewString()
 	expiresAt := time.Now().Add(120 * time.Second)
-
-	// // Set the token in the session map, along with the session information
-	sessions[sessionToken] = session{
-		// username: creds.Username,
-		// username: _username,
-		expiry: expiresAt,
-	}
 
 	// Finally, we set the client cookie for "session_token" as the session token we just generated
 	// we also set an expiry time of 120 seconds
@@ -85,49 +109,35 @@ func signin_handler(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	// TODO: Find if another sessionid belongs to the user.
+	// If so, copy the old user_state to a new entry and remove the old session id.
+
+	// Track the current user by its session ids
+	a.session_to_user[sessionToken] = username
+	a.all_user_state[username] = user_state{shotnr: 0, frame: 0}
+
+	fmt.Println("signin_handler: a = ", a)
+
 	// Write a response, this will be rendered by htmx
 	fmt.Fprintf(w, "setting new session token: %s", sessionToken)
 	fmt.Printf("signin_handler: Setting new session token: %s\n", sessionToken)
-}
-
-// Tracks users with a unique session string
-// type state_data struct {
-// 	Session_token_id string
-// }
-
-// Renders the main page
-func my_route(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Handling HTTP requests...")
-
-	t_data := state_data{Session_token_id: "undefined"}
-	c, err := r.Cookie("session_token")
-	if err != nil {
-		fmt.Println("Session token not set")
-	} else {
-		fmt.Println("session_token = ", c.Value)
-		t_data.Session_token_id = c.Value
-	}
-
-	// Read template
-	templ, err := template.ParseFiles("index.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	templ.Execute(w, t_data)
+	return 0, nil
 }
 
 // Sends SPARTA dummy data (100x100 16-bit integer array, random values)
-func fetch_data_array(w http.ResponseWriter, r *http.Request) {
-	t_data := state_data{Session_token_id: "undefined"}
+func fetch_data_array(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
+	// t_data := state_data{Session_token_id: "undefined"}
+	session_id := ""
 
 	c, err := r.Cookie("session_token")
 	if err != nil {
 		fmt.Println("fetch_data_array: Session token not set")
 	} else {
-		fmt.Println("fetch_data_array: session_token = ", c.Value)
-		t_data.Session_token_id = c.Value
+		session_id = c.Value
+		fmt.Println("fetch_data_array: session_token = ", session_id)
 	}
+
+	fmt.Println("fetch_data_array: a = ", a)
 
 	// Create a 10x10 array of 16-bit integers
 	array := make([]uint16, 100)
@@ -141,6 +151,8 @@ func fetch_data_array(w http.ResponseWriter, r *http.Request) {
 	if err := msgpack.MarshalWriteAsArray(w, array); err != nil {
 		panic(err)
 	}
+
+	return 0, nil
 
 }
 
@@ -210,11 +222,14 @@ func main() {
 		println(err.Error())
 	}
 
-	http.Handle("/", http.HandlerFunc(my_route))                                      // Main page
-	http.Handle("/signin", http.HandlerFunc(signin_handler))                          // Handles login etc.
+	context := &app_context{make(map[string]string), make(map[string]user_state)}
+
+	// http.Handle("/", http.HandlerFunc(my_route))                                      // Main page
+	http.Handle("/", app_handler{context, my_route})
+	http.Handle("/signin", app_handler{context, signin_handler})                      // Handles login etc.
 	http.Handle("/frame_navigation", http.HandlerFunc(fetch_frame_navigation))        // Loads frame navigation UI
 	http.Handle("/get_sparta_info/", http.HandlerFunc(get_sparta_info))               // Loads SPARTA info
-	http.Handle("/api/fetch_data_uint16", http.HandlerFunc(fetch_data_array))         // Loads SPARTA frames
+	http.Handle("/api/fetch_data_uint16", app_handler{context, fetch_data_array})     // Loads SPARTA frames
 	http.Handle("/api/submit", http.HandlerFunc(handle_submit))                       // Handles label submission etc.
 	http.Handle("/css/", http.StripPrefix("/css", http.FileServer(http.Dir("css/")))) // to serve css
 

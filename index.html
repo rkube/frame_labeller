@@ -5,10 +5,11 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <!-- HTMX -->
         <script src="https://unpkg.com/htmx.org@2.0.3" integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq" crossorigin="anonymous"></script>
-        <!-- Plotly -->
-        <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
         <!-- msgpacks -->
         <script src="https://rawgit.com/kawanet/msgpack-lite/master/dist/msgpack.min.js"></script>
+        <!-- e-charts -->
+        <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
+
         <title> Go HTMX </title>
         <link rel="stylesheet" type="text/css" href="/css/style-2.css">
     </head>
@@ -60,70 +61,11 @@
                     <div id="sparta-shot-nav" class="nav-containers">
                         Fetch a shot to load navigation
                     </div>
-                    <script>
-                        function reshape_array(data_array) {
-                            // data_array: a view on a 100 (= 10x10) Uint16Array
-                            let new_array = []
-                            for (let i = 0; i < 10; i++) {
-                                tmp_array = [data_array[i * 10], data_array[i * 10 + 1], data_array[i * 10 + 2], data_array[i * 10 + 3], data_array[i * 10 + 4], data_array[i * 10 + 5], data_array[i * 10 + 6], data_array[i * 10 + 7], data_array[i * 10 + 8], data_array[i * 10 + 9]]
-                                new_array.push(tmp_array)
-                            }
-                            return new_array
-                        }
-    
-                        function fetchArrayData() {
-                            const cookies = document.cookie;
-                            console.log('cookies = ', cookies)
-
-                            fetch('http://localhost:8080/api/fetch_data_uint16', {
-                                    credentials: "include"})
-                            .then(response => { // Check if the response is OK
-                                console.log('response = ', response)
-                                if (!response.ok) {
-                                    throw new Error(`Failed to fetch data: ${response.status}`);
-                                }
-                                return response.arrayBuffer();
-                            })
-                            .then(buffer => {  // Extract new data from the array buffer
-                                const view = new Uint8Array(buffer)
-                                var data_array = msgpack.decode(view)
-                                return data_array;
-                            })
-                            .then(new_array => { // update the heatmap with new data
-                                const new_data = [
-                                    {
-                                        x: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-                                        y: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-                                        z: reshape_array(new_array),
-                                        type: 'heatmap'
-                                    }
-                                ]
-                                console.log('new_data = ', new_data)
-                                Plotly.react('my-heatmap', new_data)
-                            })
-                            }
         
-                    </script>
-        
-                    <div id="my-heatmap">
-                        <script>
-                            var data = [
-                                {
-                                    z: [[1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9]],
-                                    x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                                    y: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                                    type: 'heatmap',
-                                    hoverongaps: false
-                                }
-                            ];
-                            var layout = {
-                                title: 'Current frame t = 000',
-                                showlegend: true
-                            };
-        
-                            Plotly.newPlot('my-heatmap', data, layout, {staticPlot: true});
-                        </script>
+                    <div id="sparta-frame">
+                        placeholder for sparta frame
                     </div>
+
                 </div>
             </div>
             <div class="box">

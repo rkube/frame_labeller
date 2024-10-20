@@ -114,7 +114,6 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 
 // Sends SPARTA dummy data (100x100 16-bit integer array, random values)
 func fetch_data_uint16(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
-	// t_data := state_data{Session_token_id: "undefined"}
 	session_id := ""
 
 	// If the user is logged in, update the shot the user is on
@@ -188,21 +187,6 @@ func handle_submit(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "submitted data")
 }
 
-// Updates the current frame a user is on
-func handle_new_frame(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
-	fmt.Println("dummy_route handler")
-
-	err := r.ParseForm()
-	if err != nil { // Return a Bad Request if we can't parse the form
-		fmt.Fprintf(os.Stdout, "signin_handler: Unable to parse %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return 400, nil
-	}
-	fmt.Println("dummy_route: r.Form = ", r.Form)
-
-	return 0, nil
-}
-
 func main() {
 	fmt.Println("Hello, world")
 	_, err := os.Stat(filepath.Join(".", "css", "style.css"))
@@ -219,7 +203,7 @@ func main() {
 	http.Handle("/get_sparta_info/", http.HandlerFunc(get_sparta_info))            // Loads SPARTA info
 	http.Handle("/api/fetch_data_uint16", app_handler{context, fetch_data_uint16}) // Loads SPARTA frames
 	http.Handle("/api/submit", http.HandlerFunc(handle_submit))                    // Handles label submission etc.
-	http.Handle("/api/sparta_frame", app_handler{context, handle_new_frame})
+	http.Handle("/api/sparta_frame", app_handler{context, fetch_sparta_plot})
 	http.Handle("/css/", http.StripPrefix("/css", http.FileServer(http.Dir("css/")))) // to serve css
 
 	// Start the server

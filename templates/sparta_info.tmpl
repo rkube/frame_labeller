@@ -6,12 +6,10 @@ Shot {{ .Shotnr }} t_start = {{ .T_start }} t_end = {{ .T_end }} num_frames = {{
 
 <div id="sparta-shot-nav" class="nav-container">
 New sparta shot nav: num_frames = {{ .Num_frames }}
-<!--    <button width=50px class="button-32" onClick="fetchArrayData()">Prev Frame</button> -->
-<!--    <button width=50px class="button-32" onClick="fetchArrayData()">Next Frame</button> -->
-    <input type="range" name="range" min="1" max="{{ .Num_frames }} " value="1" class="range" step="1" 
-        onmouseup="fetchArrayData()">
-<!--        hx-trigger="change" -->
-<!--        hx-post="http://localhost:8080/dummy"/ -->
+    <input type="range" name="range" min="1" max="{{ .Num_frames }}" step="1"  value="1" class="range" 
+        hx-trigger="change"
+        hx-target="#sparta-frame"
+        hx-post="http://localhost:8080/api/sparta_frame"/>
 <div>
 
 

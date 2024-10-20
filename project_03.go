@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
@@ -8,16 +9,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shamaton/msgpack/v2"
 )
 
 // Keeps track where each user is at a given time
 type user_state struct {
-	shotnr             uint
-	frame              uint
+	shotnr             int32
+	frame              int32
 	current_session_id string
 }
 
@@ -84,11 +85,10 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 		Expires:  expiresAt,
 		HttpOnly: false,
 		Path:     "/",
-		// Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	// TODO: Find if another sessionid belongs to the user.
+	// Find if another sessionid belongs to the user.
 	// If so, copy the old user_state to a new entry and remove the old session id.
 	if old_user_state, ok := a.all_user_state[username]; ok {
 		fmt.Println("signin_handler: old_session_token = ", old_user_state.current_session_id)
@@ -112,41 +112,6 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 	return 0, nil
 }
 
-// Sends SPARTA dummy data (100x100 16-bit integer array, random values)
-func fetch_data_uint16(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
-	session_id := ""
-
-	// If the user is logged in, update the shot the user is on
-	c, err := r.Cookie("session_token")
-	if err != nil {
-		fmt.Println("fetch_data_array: Session token not set")
-	} else {
-		session_id = c.Value
-		fmt.Println("fetch_data_array: session_token = ", session_id)
-		username := a.session_to_user[session_id]
-		fmt.Println("fetch_data_array: looking up username: ", username)
-		fmt.Println("fetch_data_array: user state is ", a.all_user_state[username])
-	}
-
-	fmt.Println("fetch_data_array: a = ", a)
-
-	// Create a 10x10 array of 16-bit integers
-	array := make([]uint16, 100)
-	for i := range array {
-		array[i] = uint16(rand.Int() % 100)
-	}
-	fmt.Println("fetch_data_array: Sending array data")
-
-	// Serialize the array using MessagePack
-	w.Header().Set("Content-Type", "application/x-msgpack")
-	if err := msgpack.MarshalWriteAsArray(w, array); err != nil {
-		panic(err)
-	}
-
-	return 0, nil
-
-}
-
 // Structure to store sparta information for a given shot
 // Remember to capitalize member names so that they are public
 // https://dev.to/jpoly1219/structs-methods-and-receivers-in-go-5g4f
@@ -158,33 +123,62 @@ type sparta_info struct {
 }
 
 // Loads information on SPARTA for a given shot
-// Geometry - TBD
-// Timing s
-// Also loads sparta navigation UI
-func get_sparta_info(w http.ResponseWriter, r *http.Request) {
+// Timing, number of frames, Geometry: TBD
+// Also loads sparta frame navigation panel
+func get_sparta_info(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
+	// This route will update the state of a user.
+	new_state := user_state{shotnr: 0, frame: 1, current_session_id: ""}
+
+	// Parse the passed form, extract shotnr, and update state.
+	// Throw an error if shotnr is not passed
+	err := r.ParseForm()
+	if err != nil { // Return a Bad Request if we can't parse the form
+		fmt.Fprintf(os.Stdout, "get_sparta_info: Unable to parse %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return 400, nil
+	}
+	// Extract shotnr, convert to int and update state
+	_shotnr, ok := r.Form["shotnr"]
+	if ok {
+		_s, err := strconv.Atoi(_shotnr[0])
+		if err != nil {
+			err_msg := fmt.Sprintf("/get_spart_info: Could not parse %s as int.", _shotnr[0])
+			w.WriteHeader(http.StatusBadRequest)
+			return -1, errors.New(err_msg)
+		} else {
+			new_state.shotnr = int32(_s)
+		}
+	} else {
+		w.WriteHeader(http.StatusBadRequest)
+		return -1, errors.New("route /get_spart_info requires a shot number")
+	}
+
+	// If the request came with a session token, update the state for the user
 	c, err := r.Cookie("session_token")
 	if err != nil {
-		fmt.Println("get_sparta_info: Session token not set")
+		fmt.Println("/get_sparta_info: Session token not set")
 	} else {
-		fmt.Println("get_sparta_info: session_token = ", c.Value)
+		fmt.Println("/get_sparta_info: session_token = ", c.Value)
+		username := a.session_to_user[c.Value]
+		fmt.Println("/get_sparta_info: username = ", username)
+		// The user should have already been linked to his id. Verify this.
+		fmt.Println("/get_sparta_info: registered sesssion-id: ", a.all_user_state[username].current_session_id)
+		fmt.Println("/get_sparta_info: session-id in request: ", c.Value)
 
+		if a.all_user_state[username].current_session_id != c.Value {
+			fmt.Fprintf(os.Stdout, "/get_sparta_info: username %s has registered session-id %s, but provided %s\n", username, a.all_user_state[username].current_session_id, c.Value)
+		}
+		// Update state
+		new_state.current_session_id = c.Value
+		a.all_user_state[username] = new_state
+		fmt.Println("New state: ", a.all_user_state[username])
 	}
-	my_sparta_info := sparta_info{Shotnr: 241013010, T_start: 0.0, T_end: 0.0, Num_frames: rand.Int() % 100}
+
+	my_sparta_info := sparta_info{Shotnr: int(new_state.shotnr), T_start: 0.0, T_end: 1.0, Num_frames: rand.Int() % 100}
 	tmpl := template.Must(template.ParseFiles("templates/sparta_info.tmpl"))
 	tmpl.Execute(w, my_sparta_info)
-}
 
-// Stores submitted label and comment in backend
-func handle_submit(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("handle_submit here")
-	c, err := r.Cookie("session_token")
-	if err != nil {
-		fmt.Println("handle_submit: Session token not set")
-	} else {
-		fmt.Println("handle_submit: session_token = ", c.Value)
-	}
-
-	fmt.Fprintf(w, "submitted data")
+	return 0, nil
 }
 
 func main() {
@@ -200,9 +194,9 @@ func main() {
 	http.Handle("/", app_handler{context, my_route})
 	http.Handle("/signin", app_handler{context, signin_handler}) // Handles login etc.
 	// http.Handle("/frame_navigation", http.HandlerFunc(fetch_frame_navigation))        // Loads frame navigation UI
-	http.Handle("/get_sparta_info/", http.HandlerFunc(get_sparta_info))            // Loads SPARTA info
-	http.Handle("/api/fetch_data_uint16", app_handler{context, fetch_data_uint16}) // Loads SPARTA frames
-	http.Handle("/api/submit", http.HandlerFunc(handle_submit))                    // Handles label submission etc.
+	http.Handle("/get_sparta_info", app_handler{context, get_sparta_info}) // Loads SPARTA info
+	// http.Handle("/api/fetch_data_uint16", app_handler{context, fetch_data_uint16}) // Loads SPARTA frames
+	http.Handle("/api/submit", http.HandlerFunc(handle_submit)) // Handles label submission etc.
 	http.Handle("/api/sparta_frame", app_handler{context, fetch_sparta_plot})
 	http.Handle("/css/", http.StripPrefix("/css", http.FileServer(http.Dir("css/")))) // to serve css
 

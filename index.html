@@ -24,10 +24,10 @@
                     <input type="number" min=240108001 id="shotnr" name="shotnr" value="241013002">
                     <button class="button-32" 
                         id="fetch-btn"
-                        hx-get="/get_sparta_info" 
+                        hx-post="http://localhost:8080/get_sparta_info" 
                         hx-preserve
                         hx-select-oob="#sparta-shot-info, #sparta-shot-nav">
-                        <span id="fetch-btn-label">Fetch Shot Data</span>
+                        Fetch Shot Data
                     </button>
                 </form>
             </div>
@@ -74,8 +74,7 @@
                     <input type="text" id="label" name="label" value="label"> <br>
                     <label for="comment">Comment</label>
                     <textarea name="comment" rows="20" cols="50"></textarea> <br>
-                    <button class="button-32"> Submit </button>
-
+                    <button class="button-32" width="100px"> Submit </button>
                     </button>
                 </form>
                 <div id="submit-status">

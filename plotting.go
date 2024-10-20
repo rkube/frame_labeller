@@ -11,57 +11,6 @@ import (
 	"github.com/go-echarts/go-echarts/v2/opts"
 )
 
-// Renders an echart using a html template, see
-// https://blog.cubieserver.de/2020/how-to-render-standalone-html-snippets-with-go-echarts/
-
-// type Renderer interface {
-// 	Render(w io.Writer) error
-// }
-
-// type snippetRenderer struct {
-// 	c      interface{}
-// 	before []func()
-// }
-
-// func newSnippetRenderer(c interface{}, before ...func()) chartrender.Renderer {
-// 	return &snippetRenderer{c: c, before: before}
-// }
-
-// func (r *snippetRenderer) Render(w io.Writer) error {
-// 	const tplName = "chart"
-// 	for _, fn := range r.before {
-// 		fn()
-// 	}
-
-// 	tpl := template.
-// 		Must(template.New(tplName).
-// 			Funcs(template.FuncMap{
-// 				"safeJS": func(s interface{}) template.JS {
-// 					return template.JS(fmt.Sprint(s))
-// 				},
-// 			}).
-// 			Parse(baseTpl),
-// 		)
-
-// 	err := tpl.ExecuteTemplate(w, tplName, r.c)
-// 	return err
-// }
-
-// func renderToHtml(c interface{}) template.HTML {
-// 	var buf bytes.Buffer
-// 	// r := c.(chartrender.Renderer)
-// 	r := c.(chartrender.RenderSnippets)
-// 	err := r.Render(&buf)
-// 	if err != nil {
-// 		log.Printf("Failed to render chart: %s", err)
-// 		return ""
-// 	}
-
-// 	return template.HTML(buf.String())
-// }
-
-// func render_html_snippet
-
 func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
 	// Parse the form and find the requested frame
 	err := r.ParseForm()
@@ -73,17 +22,17 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 	fmt.Println("fetch_sparta_plot: range= ", r.Form["range"][0])
 
 	// Get the current frame from the request
-	current_frame := -1
+	var current_frame int32 = 0
 	if key, ok := r.Form["range"]; ok {
-		val, err := strconv.Atoi(key[0])
+		val, err := strconv.ParseInt(key[0], 10, 32)
 		if err != nil {
 			return 0, err
 		}
-		current_frame = val
+		current_frame = int32(val)
 	}
 	fmt.Println("Fetching data for frame ", current_frame)
 
-	// If the user is logged in, update the shot the user is on
+	// If the user is logged in, update the frame the user is on
 	c, err := r.Cookie("session_token")
 	if err != nil {
 		fmt.Println("fetch_data_array: Session token not set")
@@ -91,24 +40,12 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 		// session_id = c.Value
 		username := a.session_to_user[c.Value]
 		fmt.Println("fetch_sparta_plot: username = ", username)
+		// Update state
+		_shotnr := a.all_user_state[username].shotnr
+		new_state := user_state{shotnr: _shotnr, frame: current_frame, current_session_id: c.Value}
+		a.all_user_state[username] = new_state
+		fmt.Println("New state: ", a.all_user_state[username])
 	}
-
-	// Create a new chart and put it in an html template
-	// pie := charts.NewPie()
-
-	// // preformat data
-	// pieData := []opts.PieData{
-	// 	{Name: "Dead Cases", Value: 123},
-	// 	{Name: "Recovered Cases", Value: 456},
-	// 	{Name: "Active Cases", Value: 789},
-	// }
-
-	// // put data into chart
-	// pie.AddSeries("Case Distribution", pieData).SetSeriesOptions(
-	// 	charts.WithLabelOpts(opts.Label{Show: opts.Bool(true), Formatter: "{b}: {c}"}),
-	// )
-
-	// pie.Render(w)
 
 	// generate heatmap data
 	Nx := 10
@@ -130,16 +67,20 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 
 	hm := charts.NewHeatMap()
 	hm.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Width:  "600px",
+			Height: "600px",
+		}),
 		charts.WithTitleOpts(opts.Title{
 			Title: "basic heatmap example",
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
-			Type:      "category",
+			// Type:      "value",
 			Data:      xlabels,
 			SplitArea: &opts.SplitArea{Show: opts.Bool(true)},
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
-			Type:      "category",
+			// Type:      "value",
 			Data:      ylabels,
 			SplitArea: &opts.SplitArea{Show: opts.Bool(true)},
 		}),
@@ -154,37 +95,11 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 	)
 	hm.AddSeries("heatmap", items)
 
-	// var buf bytes.Buffer
 	snippet := hm.RenderSnippet()
-	fmt.Println("snippet = ", snippet)
-	fmt.Println("snippet.Element = ", snippet.Element)
-	fmt.Println("snippet.Option = ", snippet.Option)
-	fmt.Println("snippet.Script = ", snippet.Script)
 
+	// Write the chart into the response
 	w.Write([]byte(snippet.Element))
 	w.Write([]byte(snippet.Script))
-
-	// Try rendering the heatmap into a buffer
-
-	// cs_renderer := hm.(chartrender.ChartSnippet)
-
-	// r := c.(chartrender.Renderer)
-	// err = r.Render(&buf)
-
-	// generate chart and write it to io.Writer
-	// f, _ := os.Create("pie.html")
-	// pie.Renderer = newSnippetRenderer(pie, pie.Validate)
-	// var htmlSnippet template.HTML = renderToHtml(hm)
-
-	// fmt.Println("htmlSnippet = ", htmlSnippet)
-
-	// type dummy struct {
-	// 	Value int
-	// }
-
-	// dummy_t := dummy{Value: rand.Int() % 100}
-	// tmpl := template.Must(template.ParseFiles("templates/sparta_plot.tmpl"))
-	// tmpl.Execute(w, dummy_t)
 
 	return 0, nil
 }

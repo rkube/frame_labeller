@@ -60,17 +60,16 @@ func my_route(a *app_context, w http.ResponseWriter, r *http.Request) (int, erro
  * Generate a new session token
  */
 func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
-	fmt.Println("signin_handler here")
-
+	new_state := user_state{shotnr: 0, frame: 1, current_session_id: ""}
 	// Extract username from form.
 	err := r.ParseForm()
 	if err != nil { // Return a Bad Request if we can't parse the form
-		fmt.Fprintf(os.Stdout, "signin_handler: Unable to parse %v", err)
+		fmt.Fprintf(os.Stdout, "/api/signin_handler: Unable to parse %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return 400, nil
 	}
 	username := r.Form.Get("username")
-	fmt.Printf("signin_handler: username = %s\n", username)
+	fmt.Printf("/api/signin_handler: username = %s\n", username)
 
 	// Create a new random session token
 	// we use the "github.com/google/uuid" library to generate UUIDs
@@ -88,27 +87,25 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	// Find if another sessionid belongs to the user.
-	// If so, copy the old user_state to a new entry and remove the old session id.
-	if old_user_state, ok := a.all_user_state[username]; ok {
-		fmt.Println("signin_handler: old_session_token = ", old_user_state.current_session_id)
-		// Delete the old session token for the user
-		delete(a.session_to_user, old_user_state.current_session_id)
-		a.session_to_user[sessionToken] = username
-		// Insert the new session token for the user, but keep the rest of the state the same
-		old_user_state.current_session_id = sessionToken
-		a.all_user_state[username] = old_user_state
-	} else {
-		fmt.Println("signin_handler: user logged in for first time")
-		a.session_to_user[sessionToken] = username
-		a.all_user_state[username] = user_state{shotnr: 0, frame: 0, current_session_id: sessionToken}
-	}
+	new_state.current_session_id = sessionToken
 
-	fmt.Println("signin_handler: a = ", a)
+	// Handle the case where the user has an old session id registered with him
+	if old_user_state, ok := a.all_user_state[username]; ok {
+		// If the user has a previously assigned session-id
+		// - update the mapping from session id to user.
+		delete(a.session_to_user, old_user_state.current_session_id)
+		// Insert the new session token for the user, but keep the rest of the state the same
+		new_state.shotnr = old_user_state.shotnr
+		new_state.frame = old_user_state.frame
+	} // Nothing to do if the user registerd for the first time
+	a.session_to_user[sessionToken] = username
+	a.all_user_state[username] = new_state
+
+	fmt.Println("/api/signin_handler: a = ", a)
 
 	// Write a response, this will be rendered by htmx
 	fmt.Fprintf(w, "setting new session token: %s", sessionToken)
-	fmt.Printf("signin_handler: Setting new session token: %s\n", sessionToken)
+	fmt.Printf("/api/signin_handler: Setting new session token: %s\n", sessionToken)
 	return 0, nil
 }
 
@@ -190,13 +187,10 @@ func main() {
 
 	context := &app_context{make(map[string]string), make(map[string]user_state)}
 
-	// http.Handle("/", http.HandlerFunc(my_route))                                      // Main page
 	http.Handle("/", app_handler{context, my_route})
-	http.Handle("/signin", app_handler{context, signin_handler}) // Handles login etc.
-	// http.Handle("/frame_navigation", http.HandlerFunc(fetch_frame_navigation))        // Loads frame navigation UI
-	http.Handle("/get_sparta_info", app_handler{context, get_sparta_info}) // Loads SPARTA info
-	// http.Handle("/api/fetch_data_uint16", app_handler{context, fetch_data_uint16}) // Loads SPARTA frames
-	http.Handle("/api/submit", http.HandlerFunc(handle_submit)) // Handles label submission etc.
+	http.Handle("/api/signin", app_handler{context, signin_handler})           // Handles login etc.
+	http.Handle("/api/get_sparta_info", app_handler{context, get_sparta_info}) // Loads SPARTA info
+	http.Handle("/api/submit", app_handler{context, handle_submit})            // Handles label submission etc.
 	http.Handle("/api/sparta_frame", app_handler{context, fetch_sparta_plot})
 	http.Handle("/css/", http.StripPrefix("/css", http.FileServer(http.Dir("css/")))) // to serve css
 

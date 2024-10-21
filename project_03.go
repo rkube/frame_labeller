@@ -51,6 +51,24 @@ func (ah app_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
  * Render the main page
  */
 func my_route(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
+	// Initialize with a blank state.
+	this_state := user_state{shotnr: 0, frame: 1, current_session_id: ""}
+	// If the request comes with a session cookie, we can recover the previous state
+	c, err := r.Cookie("session_token")
+	if err != nil {
+		fmt.Println("/my_route: Session token not set")
+	} else {
+		fmt.Println("/my_route: session_token = ", c.Value)
+		if username, ok := a.session_to_user[c.Value]; ok {
+			fmt.Println("/my_route: found username associated with sesion id= ", username)
+			this_state.current_session_id = c.Value
+			this_state.frame = a.all_user_state[username].frame
+			this_state.shotnr = a.all_user_state[username].shotnr
+		}
+	}
+
+	fmt.Println("/my_route: Using state: ", this_state)
+
 	fmt.Println("Handling HTTP requests...")
 	http.ServeFile(w, r, "index.html")
 	return 0, nil

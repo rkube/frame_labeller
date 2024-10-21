@@ -43,6 +43,11 @@ type user_state struct {
 
 This state is used to make sure we are writing labels correctly.
 
+The following components are rendered based on the server-state associated with a user:
+
+* sparta-shot-info  - Holds information (timing, number of frames) on loaded shot
+* sparta-shot-nav - Nav buttons for in-shot navigation
+* sparta-frame - Heatmap plot of the current frame
 
 
 

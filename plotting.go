@@ -11,6 +11,8 @@ import (
 	"github.com/go-echarts/go-echarts/v2/opts"
 )
 
+// Fetches data and renders it into a heatmap
+// Return JS code + data for the plot
 func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
 	// Parse the form and find the requested frame
 	err := r.ParseForm()

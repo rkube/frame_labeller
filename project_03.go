@@ -69,8 +69,16 @@ func my_route(a *app_context, w http.ResponseWriter, r *http.Request) (int, erro
 
 	fmt.Println("/my_route: Using state: ", this_state)
 
-	fmt.Println("Handling HTTP requests...")
-	http.ServeFile(w, r, "index.html")
+	t, err := template.ParseFiles("templates/main.tmpl", "templates/signin.tmpl")
+	if err != nil {
+		fmt.Println("Error parsing files")
+	}
+
+	err = t.Execute(w, a)
+	if err != nil {
+		fmt.Println("Error executing templates")
+	}
+
 	return 0, nil
 }
 
@@ -197,7 +205,6 @@ func get_sparta_info(a *app_context, w http.ResponseWriter, r *http.Request) (in
 }
 
 func main() {
-	fmt.Println("Hello, world")
 	_, err := os.Stat(filepath.Join(".", "css", "style.css"))
 	if err != nil {
 		println(err.Error())

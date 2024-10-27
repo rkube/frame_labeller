@@ -11,6 +11,14 @@ import (
 	"github.com/go-echarts/go-echarts/v2/opts"
 )
 
+func sparta_title_str(s sparta_info) string {
+
+	t_frame := float64(s.Current_frame) * (s.T_end - s.T_start) / float64(s.Num_frames)
+	title_str := fmt.Sprintf("Shot %d frame %d t=%f", s.Shotnr, s.Current_frame, t_frame)
+
+	return title_str
+}
+
 // Fetches data and renders it into a heatmap
 // Updates the user state: sparta_info.Current_frames
 // Return JS code + data for the plot
@@ -20,7 +28,7 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 	// Parse the form and find the requested frame
 	err := r.ParseForm()
 	if err != nil { // Return a Bad Request if we can't parse the form
-		fmt.Fprintf(os.Stdout, "signin_handler: Unable to parse %v", err)
+		fmt.Fprintf(os.Stdout, "/fetch_sparta_plot: Unable to parse %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return 400, nil
 	}
@@ -37,10 +45,15 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 	}
 	fmt.Println("/fetch_sparta_plot:Fetching data for frame ", current_frame)
 
+	title_str := ""
+
 	// If the user is logged in, update the frame the user is on
 	c, err := r.Cookie("session_token")
 	if err != nil {
 		fmt.Println("/fetch_sparta_plot: Session token not set")
+		w.Write([]byte("You need to log in before browsing shots."))
+		return 0, nil
+
 	} else {
 		username := a.session_to_user[c.Value]
 		fmt.Println("/fetch_sparta_plot: username = ", username)
@@ -51,10 +64,11 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 			T_start:       a.all_user_state[username].Sparta_state.T_start,
 			T_end:         a.all_user_state[username].Sparta_state.T_end,
 			Num_frames:    a.all_user_state[username].Sparta_state.Num_frames,
-			Current_frame: a.all_user_state[username].Sparta_state.Current_frame}
+			Current_frame: current_frame}
 
 		a.all_user_state[username] = new_state
 		fmt.Println("/fetch_sparta_plot: New state: ", a.all_user_state[username])
+		title_str = sparta_title_str(a.all_user_state[username].Sparta_state)
 	}
 
 	// generate heatmap data
@@ -82,7 +96,7 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 			Height: "600px",
 		}),
 		charts.WithTitleOpts(opts.Title{
-			Title: "basic heatmap example",
+			Title: title_str,
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			// Type:      "value",

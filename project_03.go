@@ -81,7 +81,7 @@ func my_route(a *app_context, w http.ResponseWriter, r *http.Request) (int, erro
 
 	// Render templates
 	fmt.Println("/my_route: Using state: ", new_state)
-	t, err := template.ParseFiles("templates/main.tmpl", "templates/signin.tmpl", "templates/header.tmpl", "templates/sparta_info.tmpl", "templates/frame_navigation.tmpl")
+	t, err := template.ParseFiles("templates/main.tmpl", "templates/header.tmpl", "templates/signin.tmpl", "templates/sparta_info.tmpl", "templates/frame_navigation.tmpl")
 	if err != nil {
 		fmt.Println("Error parsing files")
 	}
@@ -117,7 +117,8 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 		return 400, nil
 	}
 	username := r.Form.Get("username")
-	fmt.Printf("/api/signin_handler: username = %s\n", username)
+	new_state.Username = username
+	fmt.Printf("/api/signin_handler: username = %s\n", new_state.Username)
 
 	// Create a new random session token
 	// use the "github.com/google/uuid" library to generate UUIDs
@@ -150,22 +151,22 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 	a.session_to_user[sessionToken] = username
 	a.all_user_state[username] = new_state
 
-	fmt.Println("/api/signin_handler: a = ", a)
+	fmt.Println("/api/signin_handler: new_state = ", new_state)
 
 	// Update the header to show the new username
-	// tmpl_str := string("")
-	// tmpl_bytes, err := os.ReadFile("templates/header.tmpl")
-	// if err != nil {
-	// 	fmt.Println("/api/signin_handler: Could not read template from templates/header.tmpl")
-	// }
+	tmpl_str := string("")
+	tmpl_bytes, err := os.ReadFile("templates/header.tmpl")
+	if err != nil {
+		fmt.Println("/api/signin_handler: Could not read template from templates/header.tmpl")
+	}
 
-	// tmpl_str += string(tmpl_bytes)
-	// tmpl_str += ` {{ template "page_header_tmpl" . }}`
-	// tmpl := template.Must(template.New("").Parse(tmpl_str))
-	// tmpl.Execute(w, new_state)
+	tmpl_str += string(tmpl_bytes)
+	tmpl_str += ` {{ template "page_header_tmpl" . }}`
+	tmpl := template.Must(template.New("").Parse(tmpl_str))
+	tmpl.Execute(w, new_state)
 
 	// Write a response, this will be rendered by htmx
-	fmt.Fprintf(w, "setting new session token: %s", sessionToken)
+	// fmt.Fprintf(w, "setting new session token: %s", sessionToken)
 	fmt.Printf("/api/signin_handler: Setting new session token: %s\n", sessionToken)
 	return 0, nil
 }

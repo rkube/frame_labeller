@@ -17,9 +17,20 @@ import (
 
 // Keeps track where each user is at a given time
 type user_state struct {
-	shotnr             int32
-	frame              int32
-	current_session_id string
+	Username           string
+	Current_session_id string
+	Sparta_state       sparta_info
+}
+
+// Structure to store sparta information for a given shot
+// Remember to capitalize member names so that they are public
+// https://dev.to/jpoly1219/structs-methods-and-receivers-in-go-5g4f
+type sparta_info struct {
+	Shotnr        int
+	T_start       float64
+	T_end         float64
+	Num_frames    int
+	Current_frame int
 }
 
 // app_context is the local context. It is created in main and passed to all http handlers.
@@ -51,8 +62,10 @@ func (ah app_handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
  * Render the main page
  */
 func my_route(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
-	// Initialize with a blank state.
-	this_state := user_state{shotnr: 0, frame: 1, current_session_id: ""}
+	//
+	new_state := user_state{Current_session_id: "",
+		Username:     "anon",
+		Sparta_state: sparta_info{Shotnr: 0, T_start: -1.0, T_end: -1.0, Num_frames: 0, Current_frame: 0}}
 	// If the request comes with a session cookie, we can recover the previous state
 	c, err := r.Cookie("session_token")
 	if err != nil {
@@ -60,33 +73,42 @@ func my_route(a *app_context, w http.ResponseWriter, r *http.Request) (int, erro
 	} else {
 		fmt.Println("/my_route: session_token = ", c.Value)
 		if username, ok := a.session_to_user[c.Value]; ok {
-			fmt.Println("/my_route: found username associated with sesion id= ", username)
-			this_state.current_session_id = c.Value
-			this_state.frame = a.all_user_state[username].frame
-			this_state.shotnr = a.all_user_state[username].shotnr
+			new_state.Username = username
+			new_state.Current_session_id = c.Value
+			new_state.Sparta_state = a.all_user_state[username].Sparta_state
 		}
 	}
 
-	fmt.Println("/my_route: Using state: ", this_state)
-
-	t, err := template.ParseFiles("templates/main.tmpl", "templates/signin.tmpl")
+	// Render templates
+	fmt.Println("/my_route: Using state: ", new_state)
+	t, err := template.ParseFiles("templates/main.tmpl", "templates/signin.tmpl", "templates/header.tmpl", "templates/sparta_info.tmpl", "templates/frame_navigation.tmpl")
 	if err != nil {
 		fmt.Println("Error parsing files")
 	}
 
-	err = t.Execute(w, a)
+	err = t.Execute(w, new_state)
 	if err != nil {
-		fmt.Println("Error executing templates")
+		fmt.Println("/my_route: Error executing templates")
 	}
 
 	return 0, nil
 }
 
 /*
- * Generate a new session token
+ * Handles user login requests.
+ * Parameters: username (from form)
+ * Generate a new session token and associate it with the user in the app_context.
+ * If the user was previously identified with a different session token, replace it with the
+ * newly generated.
+ * Return a cookie to the client with the session_token.
+ * Also, write a html fragment to update the header.
  */
 func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
-	new_state := user_state{shotnr: 0, frame: 1, current_session_id: ""}
+	fmt.Println("/api/signin_handler: starting")
+	new_state := user_state{Current_session_id: "",
+		Username:     "anon",
+		Sparta_state: sparta_info{Shotnr: 0, T_start: -1.0, T_end: -1.0, Num_frames: 0, Current_frame: 0}}
+
 	// Extract username from form.
 	err := r.ParseForm()
 	if err != nil { // Return a Bad Request if we can't parse the form
@@ -98,7 +120,7 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 	fmt.Printf("/api/signin_handler: username = %s\n", username)
 
 	// Create a new random session token
-	// we use the "github.com/google/uuid" library to generate UUIDs
+	// use the "github.com/google/uuid" library to generate UUIDs
 	sessionToken := uuid.NewString()
 	expiresAt := time.Now().Add(120 * time.Second)
 
@@ -113,21 +135,34 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	new_state.current_session_id = sessionToken
+	new_state.Current_session_id = sessionToken
 
 	// Handle the case where the user has an old session id registered with him
 	if old_user_state, ok := a.all_user_state[username]; ok {
 		// If the user has a previously assigned session-id
 		// - update the mapping from session id to user.
-		delete(a.session_to_user, old_user_state.current_session_id)
+		delete(a.session_to_user, old_user_state.Current_session_id)
 		// Insert the new session token for the user, but keep the rest of the state the same
-		new_state.shotnr = old_user_state.shotnr
-		new_state.frame = old_user_state.frame
+		new_state.Sparta_state = old_user_state.Sparta_state
+		// new_state.Shotnr = old_user_state.Shotnr
+		// new_state.Frame = old_user_state.Frame
 	} // Nothing to do if the user registerd for the first time
 	a.session_to_user[sessionToken] = username
 	a.all_user_state[username] = new_state
 
 	fmt.Println("/api/signin_handler: a = ", a)
+
+	// Update the header to show the new username
+	// tmpl_str := string("")
+	// tmpl_bytes, err := os.ReadFile("templates/header.tmpl")
+	// if err != nil {
+	// 	fmt.Println("/api/signin_handler: Could not read template from templates/header.tmpl")
+	// }
+
+	// tmpl_str += string(tmpl_bytes)
+	// tmpl_str += ` {{ template "page_header_tmpl" . }}`
+	// tmpl := template.Must(template.New("").Parse(tmpl_str))
+	// tmpl.Execute(w, new_state)
 
 	// Write a response, this will be rendered by htmx
 	fmt.Fprintf(w, "setting new session token: %s", sessionToken)
@@ -135,22 +170,13 @@ func signin_handler(a *app_context, w http.ResponseWriter, r *http.Request) (int
 	return 0, nil
 }
 
-// Structure to store sparta information for a given shot
-// Remember to capitalize member names so that they are public
-// https://dev.to/jpoly1219/structs-methods-and-receivers-in-go-5g4f
-type sparta_info struct {
-	Shotnr     int
-	T_start    float64
-	T_end      float64
-	Num_frames int
-}
-
 // Loads information on SPARTA for a given shot
 // Timing, number of frames, Geometry: TBD
 // Also loads sparta frame navigation panel
 func get_sparta_info(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
-	// This route will update the state of a user.
-	new_state := user_state{shotnr: 0, frame: 1, current_session_id: ""}
+	// This route will update the state of a user:
+	// set user_state.Sparta_info to
+	new_state := user_state{}
 
 	// Parse the passed form, extract shotnr, and update state.
 	// Throw an error if shotnr is not passed
@@ -160,7 +186,7 @@ func get_sparta_info(a *app_context, w http.ResponseWriter, r *http.Request) (in
 		w.WriteHeader(http.StatusBadRequest)
 		return 400, nil
 	}
-	// Extract shotnr, convert to int and update state
+	// Extract shotnr, convert to int, and instantiate new sparta state
 	_shotnr, ok := r.Form["shotnr"]
 	if ok {
 		_s, err := strconv.Atoi(_shotnr[0])
@@ -169,7 +195,7 @@ func get_sparta_info(a *app_context, w http.ResponseWriter, r *http.Request) (in
 			w.WriteHeader(http.StatusBadRequest)
 			return -1, errors.New(err_msg)
 		} else {
-			new_state.shotnr = int32(_s)
+			new_state.Sparta_state = sparta_info{Shotnr: int(_s), T_start: 0.0, T_end: 1.0, Num_frames: rand.Int() % 100}
 		}
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
@@ -185,21 +211,39 @@ func get_sparta_info(a *app_context, w http.ResponseWriter, r *http.Request) (in
 		username := a.session_to_user[c.Value]
 		fmt.Println("/get_sparta_info: username = ", username)
 		// The user should have already been linked to his id. Verify this.
-		fmt.Println("/get_sparta_info: registered sesssion-id: ", a.all_user_state[username].current_session_id)
+		fmt.Println("/get_sparta_info: registered sesssion-id: ", a.all_user_state[username].Current_session_id)
 		fmt.Println("/get_sparta_info: session-id in request: ", c.Value)
 
-		if a.all_user_state[username].current_session_id != c.Value {
-			fmt.Fprintf(os.Stdout, "/get_sparta_info: username %s has registered session-id %s, but provided %s\n", username, a.all_user_state[username].current_session_id, c.Value)
+		if a.all_user_state[username].Current_session_id != c.Value {
+			fmt.Fprintf(os.Stdout, "/get_sparta_info: username %s has registered session-id %s, but provided %s\n", username, a.all_user_state[username].Current_session_id, c.Value)
 		}
 		// Update state
-		new_state.current_session_id = c.Value
+		new_state.Current_session_id = c.Value
+		new_state.Username = username
 		a.all_user_state[username] = new_state
 		fmt.Println("New state: ", a.all_user_state[username])
 	}
 
-	my_sparta_info := sparta_info{Shotnr: int(new_state.shotnr), T_start: 0.0, T_end: 1.0, Num_frames: rand.Int() % 100}
-	tmpl := template.Must(template.ParseFiles("templates/sparta_info.tmpl"))
-	tmpl.Execute(w, my_sparta_info)
+	// Read all template definition files and instantiate them
+	filenames := [2]string{"templates/sparta_info.tmpl", "templates/frame_navigation.tmpl"}
+	tmpl_names := [2]string{"shot_info_tmpl", "framenav_tmpl"}
+	tmpl_str := string("")
+
+	// Read all template definitions from file into a string.
+	// For each template definition, add a string that instantiates that template
+	for ix, filename := range filenames {
+		tmpl_bytes, err := os.ReadFile(filename)
+		if err != nil {
+			fmt.Println("Could not read from file ", filename)
+		}
+		tmpl_str += string(tmpl_bytes)
+		tmpl_str += ` {{ template "` + tmpl_names[ix] + `" . }}`
+		if ix < len(filenames) {
+			tmpl_str += "\n\n"
+		}
+	}
+	tmpl := template.Must(template.New("").Parse(tmpl_str))
+	tmpl.Execute(w, new_state)
 
 	return 0, nil
 }

@@ -1,2 +1,9 @@
-<button class="button-32" onClick="fetchArrayData()">Prev Frame</button>
-<button class="button-32" onClick="fetchArrayData()">Next Frame</button>
+{{ define "framenav_tmpl" }}
+    <div id="sparta-shot-nav" class="nav-container">
+    New sparta shot nav: num_frames = {{ .Sparta_state.Num_frames }}
+        <input type="range" name="range" min="1" max="{{ .Sparta_state.Num_frames }}" step="1"  value="{{ .Sparta_state.Current_frame }}" class="range" 
+            hx-trigger="change"
+            hx-target="#sparta-frame"
+            hx-post="http://localhost:8080/api/sparta_frame"/>
+    </div>
+{{ end }}

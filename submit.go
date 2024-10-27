@@ -9,7 +9,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Stores submitted label and comment in backend
+/*
+ * Stores label and comment in the database
+ */
 func handle_submit(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
 	c, err := r.Cookie("session_token")
 	if err != nil {
@@ -43,16 +45,16 @@ func handle_submit(a *app_context, w http.ResponseWriter, r *http.Request) (int,
 	username := a.session_to_user[c.Value]
 
 	fmt.Println("/api/handle_submit: username = ", username)
-	fmt.Println("/api/handle_submit: shotnr = ", a.all_user_state[username].shotnr)
-	fmt.Println("/api/handle_submit: framen = ", a.all_user_state[username].frame)
+	fmt.Println("/api/handle_submit: shotnr = ", a.all_user_state[username].Sparta_state.Shotnr)
+	fmt.Println("/api/handle_submit: framen = ", a.all_user_state[username].Sparta_state.Current_frame)
 	fmt.Println("/api/handle_submit: label = ", r.Form["label"][0])
 	fmt.Println("/api/handle_submit: comment = ", r.Form["comment"][0])
 
 	// // Prepare SQL command
 	sql_cmd := "INSERT INTO test01 (username, shotnr, framenr, label, comment) VALUES "
 	sql_cmd += fmt.Sprintf("(\"%s\", ", username)
-	sql_cmd += fmt.Sprintf("%d, ", a.all_user_state[username].shotnr)
-	sql_cmd += fmt.Sprintf("%d, ", a.all_user_state[username].frame)
+	sql_cmd += fmt.Sprintf("%d, ", a.all_user_state[username].Sparta_state.Shotnr)
+	sql_cmd += fmt.Sprintf("%d, ", a.all_user_state[username].Sparta_state.Current_frame)
 	sql_cmd += fmt.Sprintf("\"%s\", ", r.Form["label"][0])
 	sql_cmd += fmt.Sprintf("\"%s\")", r.Form["comment"][0])
 	//  strconv.Itoa(a.all_user_state[username].shotnr) + ", "

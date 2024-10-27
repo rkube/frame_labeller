@@ -14,7 +14,10 @@
         <link rel="stylesheet" type="text/css" href="/css/style-2.css">
     </head>
     <body>
-        <header class="navheader"><h1 align="center">SPARTA labelling tool</h1></header>
+
+        <header class="navheader">
+            <!-- {{ template "page_header_tmpl" . }} -->
+        </header>
         <main class="container">
             <div class="box">
                 <form>
@@ -31,9 +34,7 @@
             </div>
 
             <div class="box"> 
-                <div id="sparta-shot-info">
-                    Sparta Info for selected shot
-                </div>
+                {{ template "shot_info_tmpl" . }}
             </div>
 
             <div class="box">
@@ -43,24 +44,21 @@
                     <!-- Careful to match trailing slashes in go's route handler here... -->
                     <button hx-post="http://localhost:8080/api/signin"
                         hx-trigger="click"
-                        hx-target="#session-info"
+                        hx-target="#dummy"
                         hx-swap="innerHTML"
                         class="button-32">
                     Start Session 
                     </button>
                 </form>
-                <div id="session-info">
-                    {{ template "signin_tmpl" . }}
-                </div>
+                <div id="dummy">
+                </div/
+
 
             </div>
 
             <div class="box"> 
                 <div id="data-display" class="plotwindow">
-                    <div id="sparta-shot-nav" class="nav-containers">
-                        Fetch a shot to load navigation
-                    </div>
-        
+                    {{ template "framenav_tmpl" . }}
                     <div id="sparta-frame">
                         placeholder for sparta frame
                     </div>
@@ -85,4 +83,4 @@
 
         </main>
     </body>
-</html>
+</html> 

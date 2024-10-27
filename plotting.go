@@ -12,8 +12,11 @@ import (
 )
 
 // Fetches data and renders it into a heatmap
+// Updates the user state: sparta_info.Current_frames
 // Return JS code + data for the plot
 func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (int, error) {
+	new_state := user_state{}
+
 	// Parse the form and find the requested frame
 	err := r.ParseForm()
 	if err != nil { // Return a Bad Request if we can't parse the form
@@ -21,32 +24,37 @@ func fetch_sparta_plot(a *app_context, w http.ResponseWriter, r *http.Request) (
 		w.WriteHeader(http.StatusBadRequest)
 		return 400, nil
 	}
-	fmt.Println("fetch_sparta_plot: range= ", r.Form["range"][0])
+	fmt.Println("/fetch_sparta_plot: range= ", r.Form["range"][0])
 
 	// Get the current frame from the request
-	var current_frame int32 = 0
+	var current_frame int = 0
 	if key, ok := r.Form["range"]; ok {
 		val, err := strconv.ParseInt(key[0], 10, 32)
 		if err != nil {
 			return 0, err
 		}
-		current_frame = int32(val)
+		current_frame = int(val)
 	}
-	fmt.Println("Fetching data for frame ", current_frame)
+	fmt.Println("/fetch_sparta_plot:Fetching data for frame ", current_frame)
 
 	// If the user is logged in, update the frame the user is on
 	c, err := r.Cookie("session_token")
 	if err != nil {
-		fmt.Println("fetch_data_array: Session token not set")
+		fmt.Println("/fetch_sparta_plot: Session token not set")
 	} else {
-		// session_id = c.Value
 		username := a.session_to_user[c.Value]
-		fmt.Println("fetch_sparta_plot: username = ", username)
+		fmt.Println("/fetch_sparta_plot: username = ", username)
 		// Update state
-		_shotnr := a.all_user_state[username].shotnr
-		new_state := user_state{shotnr: _shotnr, frame: current_frame, current_session_id: c.Value}
+		new_state.Current_session_id = a.all_user_state[username].Current_session_id
+		new_state.Username = username
+		new_state.Sparta_state = sparta_info{Shotnr: a.all_user_state[username].Sparta_state.Shotnr,
+			T_start:       a.all_user_state[username].Sparta_state.T_start,
+			T_end:         a.all_user_state[username].Sparta_state.T_end,
+			Num_frames:    a.all_user_state[username].Sparta_state.Num_frames,
+			Current_frame: a.all_user_state[username].Sparta_state.Current_frame}
+
 		a.all_user_state[username] = new_state
-		fmt.Println("New state: ", a.all_user_state[username])
+		fmt.Println("/fetch_sparta_plot: New state: ", a.all_user_state[username])
 	}
 
 	// generate heatmap data
